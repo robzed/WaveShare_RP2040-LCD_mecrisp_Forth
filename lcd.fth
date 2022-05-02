@@ -293,11 +293,115 @@ $0000 constant BLACK
  BLACK lcd.fill lcd.display
 ;
 
+: rgb16 ( r_byte g_byte b_byte -- colour )
+  \ we don't need these because first thing we do if a shift and bitwise AND
+  \ dup 255 > if drop 255 then rot
+  \ dup 255 > if drop 255 then rot
+  \ dup 255 > if drop 255 then rot 
+  
+  \ do blue component
+  3 >> $1F AND   ( b -- 5-bit-blue )
+  8 << \ blue into position
+
+  \ do green component
+  swap
+  2 >> $3F AND  \ ( g -- 6-bit-green )
+  dup 3 >> $7 AND \ green high bits, into position
+  swap $07 AND \ green low bits
+  13 <<        \ green low bits into position
+  +   \ merge green into single integer
+  +   \ merge blue and green into single integer
+
+  \ do red component
+  swap
+  3 >> $1F AND    ( g -- 5-bit-red )
+  3 <<            \ red into position
+
+  +  \ merge red into position
+;
+
+WHITE variable _fbcolour
+
+\ NOTE: No out of bounds checking - clipping should be done before this!
+: fb_addr ( x y -- addr )
+  lcd_width * + pixsize * lcd_buffer +
+;
+
+: xyclip ( x y -- clip-x clip-y )
+  dup 0 < IF drop 0 THEN
+  dup lcd_height > IF drop lcd_height 1- THEN
+  swap
+
+  dup 0 < IF drop 0 THEN
+  dup lcd_width > IF drop lcd_width 1- THEN
+  swap
+; 
+
+: width-clip ( x w -- x w-clip )
+ 2dup + lcd_width > IF 
+    drop lcd_width over -
+  THEN
+;
+
+: height-clip ( y h -- y h-clip )
+  2dup + lcd_height > IF 
+    drop lcd_height over - 
+  THEN
+;
+
+: lcd.hline  ( x y w c -- )
+  _fbcolour !
+
+  \ check to see if width draw is outside FB
+  -rot xyclip rot
+
+  \ check to see if width draw is outside FB
+  rot swap width-clip ( x y w -- y x w-clip )
+
+  -rot swap fb_addr
+  
+  \ finally do the draw!
+  swap 0 do _fbcolour @ over h! pixsize + loop drop
+;
+
+: lcd.vline ( x y h c -- )
+  _fbcolour !
+
+  \ clip then convert to address
+  -rot xyclip rot
+
+  \ check to see if height draw is outside FB
+  height-clip ( x y h -- x y h-clip )
+
+  -rot fb_addr
+
+  \ finally do the draw!
+  swap 0 do _fbcolour @ over h! lcd_width pixsize *  + loop drop
+;
+
+: line_test
+  black lcd.fill
+  10 10 140 BLUE lcd.hline
+  10 70 140 BLUE lcd.hline
+  10 10 60 BLUE  lcd.vline
+  150 10 60 BLUE lcd.vline
+    
+  0 0 160 BLUE   lcd.hline
+  0 79 160 BLUE  lcd.hline
+  0 0 80 BLUE    lcd.vline
+  159 0 80 BLUE  lcd.vline
+
+  10 10 20 white lcd.hline
+  10 20 30 red lcd.vline 
+  100 20 40 green lcd.hline
+
+  lcd.display
+;
+
+
 
 \ to do: 
-\ 1b. Do a save to slot
-\ 2. time lcd.display
-\ 3. 
+\ =======
 
 \ Make this happen
 \    lcd.fill(BLACK)   
@@ -306,18 +410,14 @@ $0000 constant BLACK
 \    lcd.text("Pico-LCD-0.96",30,55,GREEN)
 \    lcd.display()
 
-\ Make this happen    
-\    lcd.hline(10,10,140,BLUE)
-\    lcd.hline(10,70,140,BLUE)
-\    lcd.vline(10,10,60,BLUE)
-\    lcd.vline(150,10,60,BLUE)
-    
-\    lcd.hline(0,0,160,BLUE)
-\    lcd.hline(0,79,160,BLUE)
-\    lcd.vline(0,0,80,BLUE)
-\    lcd.vline(159,0,80,BLUE) 
-
 \ Make this happen
 \           lcd.fill_rect(m,n,10,10,WHITE)
 \ 
+
+\ Partial display update? Only lines that have been changed?
+\ Add some images to the Repo
+\ Consider time display?
+\ Power down after displaying for x seconds? 
+\ Consider speed up SPI
+\ PWM for backlight
 
