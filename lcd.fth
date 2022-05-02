@@ -320,7 +320,7 @@ $0000 constant BLACK
   +  \ merge red into position
 ;
 
-WHITE variable _fbcolour
+WHITE variable fgcolour
 
 \ NOTE: No out of bounds checking - clipping should be done before this!
 : fb_addr ( x y -- addr )
@@ -350,7 +350,7 @@ WHITE variable _fbcolour
 ;
 
 : lcd.hline  ( x y w c -- )
-  _fbcolour !
+  fgcolour !
 
   \ check to see if width draw is outside FB
   -rot xyclip rot
@@ -361,13 +361,13 @@ WHITE variable _fbcolour
   -rot swap fb_addr
   
   \ finally do the draw!
-  swap 0 do _fbcolour @ over h! pixsize + loop drop
+  swap 0 do fgcolour @ over h! pixsize + loop drop
 ;
 
 : lcd.vline ( x y h c -- )
-  _fbcolour !
+  fgcolour !
 
-  \ clip then convert to address
+  \ clip x and y
   -rot xyclip rot
 
   \ check to see if height draw is outside FB
@@ -376,7 +376,7 @@ WHITE variable _fbcolour
   -rot fb_addr
 
   \ finally do the draw!
-  swap 0 do _fbcolour @ over h! lcd_width pixsize *  + loop drop
+  swap 0 do fgcolour @ over h! lcd_width pixsize *  + loop drop
 ;
 
 : line_test
@@ -398,26 +398,174 @@ WHITE variable _fbcolour
   lcd.display
 ;
 
+8 variable _texth
+8 variable _textw
+
+\ left adjust pixels
+: |<<pixels ( bitmap numpix -- adjusted-bitmap numpix )
+  \ make the pixels left aligned
+  swap over 32 swap - << swap 
+;
+
+\ no range checking
+: _drawpixline ( addr bitmap numpix -- )
+  32 min
+  |<<pixels
+
+  \ loop over pixels and draw them in the frame buffer
+  0 do 
+    ( addr bitmap )
+    ROL \ rotate left 1 position
+
+    2dup 1 and if 
+      fgcolour @ swap h! 
+    else 
+      drop 
+    then 
+    swap pixsize + swap
+  loop 2drop
+;
+
+: _drawcharw ( addr bitmap -- )
+  _textw @ _drawpixline
+;
+
+: drawbytelines ( char-addr x y height -- )
+  
+  \ clip x and y
+  -rot xyclip rot
+
+  \ check to see if height draw is outside FB
+  height-clip ( x y h -- x y h-clip )
+
+  \ convert x and y to address
+  -rot fb_addr
+
+  swap 0 do ( char-addr fbaddr height=count -- char-addr fbaddr )
+    2dup 
+    swap C@ _drawcharw 
+    swap 1+ swap  \ next pixel row
+    lcd_width pixsize *  +   \ next framebuffer line
+  loop 2drop
+;
+
+
+\ spectrum character set
+create speccy_char_set
+hex
+ 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 10 c, 10 c, 10 c, 10 c, 00 c, 10 c, 00 c, 
+ 00 c, 24 c, 24 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 24 c, 7e c, 24 c, 24 c, 7e c, 24 c, 00 c, 
+ 00 c, 08 c, 3e c, 28 c, 3e c, 0a c, 3e c, 08 c, 00 c, 62 c, 64 c, 08 c, 10 c, 26 c, 46 c, 00 c, 
+ 00 c, 10 c, 28 c, 10 c, 2a c, 44 c, 3a c, 00 c, 00 c, 08 c, 10 c, 00 c, 00 c, 00 c, 00 c, 00 c, 
+ 00 c, 04 c, 08 c, 08 c, 08 c, 08 c, 04 c, 00 c, 00 c, 20 c, 10 c, 10 c, 10 c, 10 c, 20 c, 00 c, 
+ 00 c, 00 c, 14 c, 08 c, 3e c, 08 c, 14 c, 00 c, 00 c, 00 c, 08 c, 08 c, 3e c, 08 c, 08 c, 00 c, 
+ 00 c, 00 c, 00 c, 00 c, 00 c, 08 c, 08 c, 10 c, 00 c, 00 c, 00 c, 00 c, 3e c, 00 c, 00 c, 00 c, 
+ 00 c, 00 c, 00 c, 00 c, 00 c, 18 c, 18 c, 00 c, 00 c, 00 c, 02 c, 04 c, 08 c, 10 c, 20 c, 00 c, 
+ 00 c, 3c c, 46 c, 4a c, 52 c, 62 c, 3c c, 00 c, 00 c, 18 c, 28 c, 08 c, 08 c, 08 c, 3e c, 00 c, 
+ 00 c, 3c c, 42 c, 02 c, 3c c, 40 c, 7e c, 00 c, 00 c, 3c c, 42 c, 0c c, 02 c, 42 c, 3c c, 00 c, 
+ 00 c, 08 c, 18 c, 28 c, 48 c, 7e c, 08 c, 00 c, 00 c, 7e c, 40 c, 7c c, 02 c, 42 c, 3c c, 00 c, 
+ 00 c, 3c c, 40 c, 7c c, 42 c, 42 c, 3c c, 00 c, 00 c, 7e c, 02 c, 04 c, 08 c, 10 c, 10 c, 00 c, 
+ 00 c, 3c c, 42 c, 3c c, 42 c, 42 c, 3c c, 00 c, 00 c, 3c c, 42 c, 42 c, 3e c, 02 c, 3c c, 00 c, 
+ 00 c, 00 c, 00 c, 10 c, 00 c, 00 c, 10 c, 00 c, 00 c, 00 c, 10 c, 00 c, 00 c, 10 c, 10 c, 20 c, 
+ 00 c, 00 c, 04 c, 08 c, 10 c, 08 c, 04 c, 00 c, 00 c, 00 c, 00 c, 3e c, 00 c, 3e c, 00 c, 00 c, 
+ 00 c, 00 c, 10 c, 08 c, 04 c, 08 c, 10 c, 00 c, 00 c, 3c c, 42 c, 04 c, 08 c, 00 c, 08 c, 00 c, 
+ 00 c, 3c c, 4a c, 56 c, 5e c, 40 c, 3c c, 00 c, 00 c, 3c c, 42 c, 42 c, 7e c, 42 c, 42 c, 00 c, 
+ 00 c, 7c c, 42 c, 7c c, 42 c, 42 c, 7c c, 00 c, 00 c, 3c c, 42 c, 40 c, 40 c, 42 c, 3c c, 00 c, 
+ 00 c, 78 c, 44 c, 42 c, 42 c, 44 c, 78 c, 00 c, 00 c, 7e c, 40 c, 7c c, 40 c, 40 c, 7e c, 00 c, 
+ 00 c, 7e c, 40 c, 7c c, 40 c, 40 c, 40 c, 00 c, 00 c, 3c c, 42 c, 40 c, 4e c, 42 c, 3c c, 00 c, 
+ 00 c, 42 c, 42 c, 7e c, 42 c, 42 c, 42 c, 00 c, 00 c, 3e c, 08 c, 08 c, 08 c, 08 c, 3e c, 00 c, 
+ 00 c, 02 c, 02 c, 02 c, 42 c, 42 c, 3c c, 00 c, 00 c, 44 c, 48 c, 70 c, 48 c, 44 c, 42 c, 00 c, 
+ 00 c, 40 c, 40 c, 40 c, 40 c, 40 c, 7e c, 00 c, 00 c, 42 c, 66 c, 5a c, 42 c, 42 c, 42 c, 00 c, 
+ 00 c, 42 c, 62 c, 52 c, 4a c, 46 c, 42 c, 00 c, 00 c, 3c c, 42 c, 42 c, 42 c, 42 c, 3c c, 00 c, 
+ 00 c, 7c c, 42 c, 42 c, 7c c, 40 c, 40 c, 00 c, 00 c, 3c c, 42 c, 42 c, 52 c, 4a c, 3c c, 00 c, 
+ 00 c, 7c c, 42 c, 42 c, 7c c, 44 c, 42 c, 00 c, 00 c, 3c c, 40 c, 3c c, 02 c, 42 c, 3c c, 00 c, 
+ 00 c, fe c, 10 c, 10 c, 10 c, 10 c, 10 c, 00 c, 00 c, 42 c, 42 c, 42 c, 42 c, 42 c, 3c c, 00 c, 
+ 00 c, 42 c, 42 c, 42 c, 42 c, 24 c, 18 c, 00 c, 00 c, 42 c, 42 c, 42 c, 42 c, 5a c, 24 c, 00 c, 
+ 00 c, 42 c, 24 c, 18 c, 18 c, 24 c, 42 c, 00 c, 00 c, 82 c, 44 c, 28 c, 10 c, 10 c, 10 c, 00 c, 
+ 00 c, 7e c, 04 c, 08 c, 10 c, 20 c, 7e c, 00 c, 00 c, 0e c, 08 c, 08 c, 08 c, 08 c, 0e c, 00 c, 
+ 00 c, 00 c, 40 c, 20 c, 10 c, 08 c, 04 c, 00 c, 00 c, 70 c, 10 c, 10 c, 10 c, 10 c, 70 c, 00 c, 
+ 00 c, 10 c, 38 c, 54 c, 10 c, 10 c, 10 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, ff c, 
+ 00 c, 1c c, 22 c, 78 c, 20 c, 20 c, 7e c, 00 c, 00 c, 00 c, 38 c, 04 c, 3c c, 44 c, 3c c, 00 c, 
+ 00 c, 20 c, 20 c, 3c c, 22 c, 22 c, 3c c, 00 c, 00 c, 00 c, 1c c, 20 c, 20 c, 20 c, 1c c, 00 c, 
+ 00 c, 04 c, 04 c, 3c c, 44 c, 44 c, 3c c, 00 c, 00 c, 00 c, 38 c, 44 c, 78 c, 40 c, 3c c, 00 c, 
+ 00 c, 0c c, 10 c, 18 c, 10 c, 10 c, 10 c, 00 c, 00 c, 00 c, 3c c, 44 c, 44 c, 3c c, 04 c, 38 c, 
+ 00 c, 40 c, 40 c, 78 c, 44 c, 44 c, 44 c, 00 c, 00 c, 10 c, 00 c, 30 c, 10 c, 10 c, 38 c, 00 c, 
+ 00 c, 04 c, 00 c, 04 c, 04 c, 04 c, 24 c, 18 c, 00 c, 20 c, 28 c, 30 c, 30 c, 28 c, 24 c, 00 c, 
+ 00 c, 10 c, 10 c, 10 c, 10 c, 10 c, 0c c, 00 c, 00 c, 00 c, 68 c, 54 c, 54 c, 54 c, 54 c, 00 c, 
+ 00 c, 00 c, 78 c, 44 c, 44 c, 44 c, 44 c, 00 c, 00 c, 00 c, 38 c, 44 c, 44 c, 44 c, 38 c, 00 c, 
+ 00 c, 00 c, 78 c, 44 c, 44 c, 78 c, 40 c, 40 c, 00 c, 00 c, 3c c, 44 c, 44 c, 3c c, 04 c, 06 c, 
+ 00 c, 00 c, 1c c, 20 c, 20 c, 20 c, 20 c, 00 c, 00 c, 00 c, 38 c, 40 c, 38 c, 04 c, 78 c, 00 c, 
+ 00 c, 10 c, 38 c, 10 c, 10 c, 10 c, 0c c, 00 c, 00 c, 00 c, 44 c, 44 c, 44 c, 44 c, 38 c, 00 c, 
+ 00 c, 00 c, 44 c, 44 c, 28 c, 28 c, 10 c, 00 c, 00 c, 00 c, 44 c, 54 c, 54 c, 54 c, 28 c, 00 c, 
+ 00 c, 00 c, 44 c, 28 c, 10 c, 28 c, 44 c, 00 c, 00 c, 00 c, 44 c, 44 c, 44 c, 3c c, 04 c, 38 c, 
+ 00 c, 00 c, 7c c, 08 c, 10 c, 20 c, 7c c, 00 c, 00 c, 0e c, 08 c, 30 c, 08 c, 08 c, 0e c, 00 c, 
+ 00 c, 08 c, 08 c, 08 c, 08 c, 08 c, 08 c, 00 c, 00 c, 70 c, 10 c, 0c c, 10 c, 10 c, 70 c, 00 c, 
+ 00 c, 14 c, 28 c, 00 c, 00 c, 00 c, 00 c, 00 c, 3c c, 42 c, 99 c, a1 c, a1 c, 99 c, 42 c, 3c c, 
+decimal 
+
+\ speccy_char_set 48 + 18 10 8 drawbytelines
+
+speccy_char_set variable _textsetaddr
+BLACK variable bgcolour
+
+
+\ : lcd.fill_rect ( x y w h c -- )
+\  fgcolour !  
+\ ;
+
+
+\ All characters have dimensions of 8x8 pixels and there is currently no way to change the font.
+: lcd.printch ( x y char -- )
+  \ characters below 32 are all spaces
+  -32 + 0 max
+  \ convert character into bitmap address
+  _texth @ * _textsetaddr @ +
+  -rot ( char-addr x y )
+  _texth @ drawbytelines
+;
+
+: lcd.text ( text-addr len x y colour )
+  fgcolour !
+
+  2swap
+  0 DO ( x y text_addr)
+    \ horrible stack hack
+    0 2over 2over
+    \ ( x y text_addr 0 x y text_addr 0 )
+    drop C@ lcd.printch drop
+    \ go to next address
+    1+
+    \ move x by 8 pixels along
+    rot _textw @ + -rot
+  LOOP
+  2drop drop
+;
+
+: test_text
+  BLACK lcd.fill   
+  S" Hello Pico!" 35 15 GREEN lcd.text
+  S" This is:" 50 35 RED BLUE + lcd.text
+  S" Pico-LCD-0.96" 30 55 GREEN BLUE + lcd.text
+  lcd.display
+;
 
 
 \ to do: 
 \ =======
 
 \ Make this happen
-\    lcd.fill(BLACK)   
-\    lcd.text("Hello pico!",35,15,GREEN)
-\    lcd.text("This is:",50,35,GREEN)    
-\    lcd.text("Pico-LCD-0.96",30,55,GREEN)
-\    lcd.display()
 
 \ Make this happen
 \           lcd.fill_rect(m,n,10,10,WHITE)
 \ 
 
+\ add masks to back of fonts?
+\ How much free flash/RAM?
 \ Partial display update? Only lines that have been changed?
 \ Add some images to the Repo
 \ Consider time display?
 \ Power down after displaying for x seconds? 
 \ Consider speed up SPI
 \ PWM for backlight
+\ : lcd.setfont ( w h charset -- ) ;
 
