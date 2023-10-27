@@ -549,23 +549,39 @@ BLACK variable bgcolour
   lcd.display
 ;
 
+: center ( addr n y -- addr n x y )
+    over
+    8 * lcd_width swap - 2/
+    dup 0< IF drop 0 THEN
+    swap
+;
+
+: center_test
+  BLACK lcd.fill   
+  S" Hello !!!" 0 center RED GREEN + lcd.text
+  S" Rob says 'hi'" 10 center GREEN lcd.text
+  S"     ... to everyone" 20 center GREEN lcd.text
+  S" RP2040 Mecrisp Forth" 30 center RED BLUE + lcd.text
+  S" on Pico-LCD-0.96" 40 center GREEN BLUE + lcd.text
+  lcd.display
+;
+
 
 \ to do: 
 \ =======
-
-\ Make this happen
-
-\ Make this happen
-\           lcd.fill_rect(m,n,10,10,WHITE)
-\ 
-
+\ Make this work: lcd.fill_rect(m,n,10,10,WHITE)
+\ Add game graphics
+\ Add time of day 8:00am printing
+\ Add full colour picture 
 \ add masks to back of fonts?
 \ How much free flash/RAM?
 \ Partial display update? Only lines that have been changed?
 \ Add some images to the Repo
 \ Consider time display?
 \ Power down after displaying for x seconds? 
+\ measure current used during sleep (do I need to power down the LCD display?)
 \ Consider speed up SPI
 \ PWM for backlight
 \ : lcd.setfont ( w h charset -- ) ;
+\ : lcd.pixel ( x y c -- )  ;
 
