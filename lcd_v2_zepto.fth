@@ -30,11 +30,17 @@ timer import
 : << lshift ;
 
 \ Write a set of bytes to the SPI port
+\ : spi_write ( address n -- )
+\  0 do 
+\    dup C@ 1 >spi 1+ 1 spi> drop
+\  loop drop
+\ ;
+
 : spi_write ( address n -- )
-  0 do 
-    dup C@ 1 >spi 1+ 
-  loop drop
+  \ faster than doing >spi in a loop
+  1 buffer>spi
 ;
+
 
 \ --------------------------------------
 \ LCD Subsystem
@@ -55,14 +61,14 @@ timer import
 : lcd.write_cmd ( byte -- )
   low lcd_dc pin!
   low lcd_cs pin!
-  1 >spi \ 1 spi> drop
+  1 >spi 1 spi> drop
   high lcd_cs pin!
 ; 
 
 : lcd.write_data ( byte -- )
   high lcd_dc pin!
   low lcd_cs pin!
-  1 >spi \ 1 spi> drop
+  1 >spi 1 spi> drop
   high lcd_cs pin!
 ; 
 
@@ -205,10 +211,7 @@ lcd_buf_size buffer: lcd_buffer
   0 lcd_height 1- 0 lcd_width 1- lcd.SetWindows       
   1 lcd_dc pin! 
   0 lcd_cs pin!
- us-counter-lsb
   lcd_buffer lcd_buf_size spi_write
- us-counter-lsb swap - u. cr
-
   1 lcd_cs pin!
 ;
 
